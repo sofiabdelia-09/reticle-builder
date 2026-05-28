@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reticle Builder</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>Reticle Builder</h1>
+        <div class="topbar-actions">
+          <button id="randomize" type="button">Randomize</button>
+          <button id="reset" type="button">Reset</button>
+          <button id="export-png" type="button" class="primary">Export PNG</button>
+          <button id="export-json" type="button">Save Config</button>
+          <label class="import-label">
+            Load Config
+            <input id="import-json" type="file" accept="application/json" hidden />
+          </label>
+        </div>
+      </header>
+      <main class="layout">
+        <section class="stage">
+          <canvas id="reticle" width="800" height="800"></canvas>
+        </section>
+        <aside class="controls" id="controls"></aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
