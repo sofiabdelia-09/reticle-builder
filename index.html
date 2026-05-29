@@ -10,14 +10,10 @@
       <header class="topbar">
         <h1>Constructor de Retículas</h1>
         <div class="topbar-actions">
-          <button id="reset" type="button">Restablecer</button>
-          <label class="import-label">
-            Cargar
-            <input id="import-json" type="file" accept="application/json" hidden />
-          </label>
-          <button id="export-json" type="button">Guardar config</button>
-          <button id="export-svg" type="button">Exportar SVG</button>
-          <button id="export-png" type="button" class="primary">Exportar PNG</button>
+          <div class="export-actions" id="export-actions">
+            <button id="export-png" type="button">Exportar PNG</button>
+            <button id="export-svg" type="button" class="primary">Exportar SVG</button>
+          </div>
         </div>
       </header>
       <main class="layout">
@@ -27,6 +23,7 @@
         </section>
         <aside class="controls" id="controls"></aside>
       </main>
+      <div id="mobile-actions-slot"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

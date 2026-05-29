@@ -50,12 +50,17 @@ function handleChange(changed: keyof GridConfig): void {
 const syncControls = buildControls(controlsRoot, config, handleChange);
 render();
 
-document.getElementById('reset')!.addEventListener('click', () => {
-  Object.assign(config, DEFAULT_CONFIG);
-  prevUnit = config.unit;
-  syncControls();
-  render();
-});
+// En mobile, los botones de export/guardar van al final (después de los colores).
+const exportActions = document.getElementById('export-actions')!;
+const topbarActions = document.querySelector('.topbar-actions')!;
+const mobileSlot = document.getElementById('mobile-actions-slot')!;
+const mobileMq = window.matchMedia('(max-width: 760px)');
+function placeExportActions(): void {
+  if (mobileMq.matches) mobileSlot.appendChild(exportActions);
+  else topbarActions.appendChild(exportActions);
+}
+placeExportActions();
+mobileMq.addEventListener('change', placeExportActions);
 
 document.getElementById('export-svg')!.addEventListener('click', () => {
   const svg = buildSVG(config, { absolute: true });
@@ -64,26 +69,6 @@ document.getElementById('export-svg')!.addEventListener('click', () => {
 
 document.getElementById('export-png')!.addEventListener('click', () => {
   exportPNG().catch(() => alert('No se pudo generar el PNG.'));
-});
-
-document.getElementById('export-json')!.addEventListener('click', () => {
-  downloadBlob(new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' }), 'reticula.json');
-});
-
-const importInput = document.getElementById('import-json') as HTMLInputElement;
-importInput.addEventListener('change', async () => {
-  const file = importInput.files?.[0];
-  if (!file) return;
-  try {
-    const loaded = JSON.parse(await file.text()) as Partial<GridConfig>;
-    Object.assign(config, DEFAULT_CONFIG, loaded);
-    prevUnit = config.unit;
-    syncControls();
-    render();
-  } catch {
-    alert('No se pudo leer ese archivo de configuración.');
-  }
-  importInput.value = '';
 });
 
 async function exportPNG(): Promise<void> {
