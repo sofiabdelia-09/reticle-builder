@@ -42,7 +42,8 @@ export function computeGrid(cfg: GridConfig): GridGeometry {
   const bottom = cfg.marginBottom * f;
   const inner = cfg.marginInner * f;
   const outer = cfg.marginOuter * f;
-  const gutter = cfg.gutter * f;
+  const gutterCol = cfg.gutterColumn * f;
+  const gutterRow = cfg.gutterRow * f;
 
   // En página derecha el lomo (interno) queda a la izquierda; en izquierda, a la derecha.
   const left = cfg.side === 'derecha' ? inner : outer;
@@ -56,8 +57,8 @@ export function computeGrid(cfg: GridConfig): GridGeometry {
   const cols = Math.max(1, Math.floor(cfg.columns));
   const rows = Math.max(1, Math.floor(cfg.rows));
 
-  const colW = (contentW - (cols - 1) * gutter) / cols;
-  const rowH = (contentH - (rows - 1) * gutter) / rows;
+  const colW = (contentW - (cols - 1) * gutterCol) / cols;
+  const rowH = (contentH - (rows - 1) * gutterRow) / rows;
 
   const valid = contentW > 0 && contentH > 0 && colW > 0 && rowH > 0;
 
@@ -67,15 +68,15 @@ export function computeGrid(cfg: GridConfig): GridGeometry {
 
   if (valid) {
     for (let c = 0; c < cols; c++) {
-      const x = contentX + c * (colW + gutter);
+      const x = contentX + c * (colW + gutterCol);
       columnGuides.push(x, x + colW);
       for (let r = 0; r < rows; r++) {
-        const y = contentY + r * (rowH + gutter);
+        const y = contentY + r * (rowH + gutterRow);
         modules.push({ x, y, w: colW, h: rowH });
       }
     }
     for (let r = 0; r < rows; r++) {
-      const y = contentY + r * (rowH + gutter);
+      const y = contentY + r * (rowH + gutterRow);
       rowGuides.push(y, y + rowH);
     }
   }

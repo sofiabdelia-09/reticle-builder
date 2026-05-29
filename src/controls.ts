@@ -80,7 +80,8 @@ const GROUPS: Group[] = [
     fields: [
       { kind: 'number', key: 'columns', label: 'Columnas', min: 1, step: 1 },
       { kind: 'number', key: 'rows', label: 'Filas', min: 1, step: 1 },
-      { kind: 'number', key: 'gutter', label: 'Medianil', min: 0, measure: true },
+      { kind: 'number', key: 'gutterColumn', label: 'Medianil columnas', min: 0, measure: true },
+      { kind: 'number', key: 'gutterRow', label: 'Medianil filas', min: 0, measure: true },
     ],
   },
   {

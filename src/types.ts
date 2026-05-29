@@ -16,7 +16,8 @@ export interface GridConfig {
 
   columns: number;
   rows: number;
-  gutter: number; // medianil, en la unidad de trabajo
+  gutterColumn: number; // medianil entre columnas, en la unidad de trabajo
+  gutterRow: number; // medianil entre filas, en la unidad de trabajo
 
   marginTop: number;
   marginBottom: number;
@@ -69,7 +70,8 @@ export const DEFAULT_CONFIG: GridConfig = {
 
   columns: 12,
   rows: 1,
-  gutter: 5,
+  gutterColumn: 5,
+  gutterRow: 5,
 
   marginTop: 20,
   marginBottom: 20,

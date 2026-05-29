@@ -38,7 +38,7 @@ function updateInfo(): void {
 function handleChange(changed: keyof GridConfig): void {
   if (changed === 'unit' && config.unit !== prevUnit) {
     const factor = MM_PER_UNIT[prevUnit] / MM_PER_UNIT[config.unit];
-    for (const key of ['customW', 'customH', 'gutter', 'marginTop', 'marginBottom', 'marginInner', 'marginOuter'] as const) {
+    for (const key of ['customW', 'customH', 'gutterColumn', 'gutterRow', 'marginTop', 'marginBottom', 'marginInner', 'marginOuter'] as const) {
       config[key] = round(config[key] * factor);
     }
     prevUnit = config.unit;
