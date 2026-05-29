@@ -3,8 +3,6 @@ import type { GridConfig } from './types.ts';
 
 const COLOR_PAGE = '#ffffff';
 const COLOR_PAGE_BORDER = '#c9ced6';
-const COLOR_MODULE = 'rgba(0, 122, 255, 0.14)';
-const COLOR_MODULE_BORDER = 'rgba(0, 122, 255, 0.55)';
 
 interface BuildOpts {
   absolute?: boolean; // agrega width/height en mm (para exportar a tamaño real)
@@ -35,7 +33,7 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
     if (cfg.showModules) {
       for (const m of g.modules) {
         parts.push(
-          `<rect x="${round(m.x)}" y="${round(m.y)}" width="${round(m.w)}" height="${round(m.h)}" fill="${COLOR_MODULE}" stroke="${COLOR_MODULE_BORDER}" stroke-width="${round(stroke * 0.6)}"/>`,
+          `<rect x="${round(m.x)}" y="${round(m.y)}" width="${round(m.w)}" height="${round(m.h)}" fill="${cfg.moduleColor}" fill-opacity="${cfg.moduleOpacity}" stroke="${cfg.moduleColor}" stroke-opacity="${Math.min(1, cfg.moduleOpacity + 0.35)}" stroke-width="${round(stroke * 0.6)}"/>`,
         );
       }
     }
@@ -44,12 +42,12 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
     if (cfg.showLines) {
       for (const gx of g.columnGuides) {
         parts.push(
-          `<line x1="${round(gx)}" y1="0" x2="${round(gx)}" y2="${round(pageH)}" stroke="${cfg.lineColor}" stroke-width="${round(stroke)}"/>`,
+          `<line x1="${round(gx)}" y1="0" x2="${round(gx)}" y2="${round(pageH)}" stroke="${cfg.lineColor}" stroke-opacity="${cfg.lineOpacity}" stroke-width="${round(stroke)}"/>`,
         );
       }
       for (const gy of g.rowGuides) {
         parts.push(
-          `<line x1="0" y1="${round(gy)}" x2="${round(pageW)}" y2="${round(gy)}" stroke="${cfg.lineColor}" stroke-width="${round(stroke)}"/>`,
+          `<line x1="0" y1="${round(gy)}" x2="${round(pageW)}" y2="${round(gy)}" stroke="${cfg.lineColor}" stroke-opacity="${cfg.lineOpacity}" stroke-width="${round(stroke)}"/>`,
         );
       }
     }
@@ -58,7 +56,7 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
     if (cfg.showMargin) {
       const { x, y, w, h } = g.margin;
       parts.push(
-        `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" fill="none" stroke="${cfg.marginColor}" stroke-width="${round(stroke)}"/>`,
+        `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" fill="none" stroke="${cfg.marginColor}" stroke-opacity="${cfg.marginOpacity}" stroke-width="${round(stroke)}"/>`,
       );
     }
   } else {

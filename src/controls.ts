@@ -1,4 +1,5 @@
 import type { GridConfig, PageSizeId, Unit } from './types.ts';
+import { createColorPicker } from './colorpicker.ts';
 
 type Option = { value: string; label: string };
 
@@ -27,6 +28,7 @@ type Field =
       kind: 'color';
       key: keyof GridConfig;
       label: string;
+      opacityKey?: keyof GridConfig;
     };
 
 interface Group {
@@ -102,8 +104,9 @@ const GROUPS: Group[] = [
   {
     title: 'Colores',
     fields: [
-      { kind: 'color', key: 'lineColor', label: 'Líneas' },
-      { kind: 'color', key: 'marginColor', label: 'Margen' },
+      { kind: 'color', key: 'moduleColor', label: 'Módulos', opacityKey: 'moduleOpacity' },
+      { kind: 'color', key: 'lineColor', label: 'Líneas', opacityKey: 'lineOpacity' },
+      { kind: 'color', key: 'marginColor', label: 'Margen', opacityKey: 'marginOpacity' },
     ],
   },
 ];
@@ -129,7 +132,9 @@ export function buildControls(
     section.appendChild(h);
 
     for (const field of group.fields) {
-      const row = document.createElement('label');
+      // las filas de color usan <div>: un <label> reenvía clicks al botón del
+      // swatch y descontrola la apertura/cierre del picker.
+      const row = document.createElement(field.kind === 'color' ? 'div' : 'label');
       row.className = 'control-row';
 
       const name = document.createElement('span');
@@ -175,17 +180,21 @@ export function buildControls(
         syncers.push(() => (input.checked = cfg[field.key] as boolean));
         row.append(name, input);
       } else if (field.kind === 'color') {
-        const input = document.createElement('input');
-        input.type = 'color';
-        input.className = 'color-input';
-        input.value = cfg[field.key] as string;
-        input.addEventListener('input', () => {
-          (cfg[field.key] as string) = input.value;
-          onChange(field.key);
+        const opacityKey = field.opacityKey;
+        const picker = createColorPicker({
+          getColor: () => cfg[field.key] as string,
+          getAlpha: () => (opacityKey ? (cfg[opacityKey] as number) : 1),
+          hasAlpha: !!opacityKey,
+          onChange: (hex, alpha) => {
+            (cfg[field.key] as string) = hex;
+            if (opacityKey) (cfg[opacityKey] as number) = alpha;
+            onChange(field.key);
+          },
         });
-        syncers.push(() => (input.value = cfg[field.key] as string));
-        row.append(name, input);
+        syncers.push(picker.sync);
+        row.append(name, picker.swatch);
       } else {
+        row.className = 'control-row control-row--stack';
         const select = document.createElement('select');
         for (const opt of field.options) {
           const o = document.createElement('option');

@@ -29,8 +29,12 @@ export interface GridConfig {
   showLines: boolean; // líneas guía de columnas/filas
   showMargin: boolean; // zona de margen coloreada
 
+  moduleColor: string;
+  moduleOpacity: number; // 0..1
   lineColor: string;
+  lineOpacity: number;
   marginColor: string;
+  marginOpacity: number;
 }
 
 // milímetros por unidad (px y pt asumen 96 / 72 dpi)
@@ -77,6 +81,10 @@ export const DEFAULT_CONFIG: GridConfig = {
   showLines: false,
   showMargin: true,
 
+  moduleColor: '#007aff',
+  moduleOpacity: 0.25,
   lineColor: '#00b3c4',
+  lineOpacity: 1,
   marginColor: '#e5006d',
+  marginOpacity: 1,
 };
