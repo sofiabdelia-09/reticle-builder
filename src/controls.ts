@@ -1,67 +1,125 @@
-import type { ReticleConfig } from './types.ts';
+import type { GridConfig, PageSizeId, Unit } from './types.ts';
 
-type Ctrl =
-  | { kind: 'toggle'; key: keyof ReticleConfig; label: string }
-  | { kind: 'range'; key: keyof ReticleConfig; label: string; min: number; max: number; step?: number }
-  | { kind: 'color'; key: keyof ReticleConfig; label: string }
-  | { kind: 'select'; key: keyof ReticleConfig; label: string; options: string[] };
+type Option = { value: string; label: string };
+
+type Field =
+  | {
+      kind: 'number';
+      key: keyof GridConfig;
+      label: string;
+      min?: number;
+      step?: number;
+      measure?: boolean; // true => se muestra el sufijo de unidad
+      showWhen?: (cfg: GridConfig) => boolean;
+    }
+  | {
+      kind: 'select';
+      key: keyof GridConfig;
+      label: string;
+      options: Option[];
+    }
+  | {
+      kind: 'toggle';
+      key: keyof GridConfig;
+      label: string;
+    }
+  | {
+      kind: 'color';
+      key: keyof GridConfig;
+      label: string;
+    };
 
 interface Group {
   title: string;
-  controls: Ctrl[];
+  fields: Field[];
 }
+
+const PAGE_OPTIONS: Option[] = (
+  ['A2', 'A3', 'A4', 'A5', 'A6', 'Carta', 'Legal', 'Tabloide', 'Personalizada'] as PageSizeId[]
+).map((v) => ({ value: v, label: v }));
+
+const UNIT_OPTIONS: Option[] = (['mm', 'cm', 'px', 'pt', 'in'] as Unit[]).map((v) => ({
+  value: v,
+  label: v,
+}));
+
+const isCustom = (cfg: GridConfig) => cfg.pageSize === 'Personalizada';
 
 const GROUPS: Group[] = [
   {
-    title: 'Appearance',
-    controls: [
-      { kind: 'select', key: 'background', label: 'Background', options: ['dark', 'light', 'transparent'] },
-      { kind: 'color', key: 'color', label: 'Color' },
-      { kind: 'range', key: 'glow', label: 'Glow', min: 0, max: 30 },
+    title: 'Documento',
+    fields: [
+      { kind: 'select', key: 'unit', label: 'Unidad', options: UNIT_OPTIONS },
+      { kind: 'select', key: 'pageSize', label: 'Tamaño', options: PAGE_OPTIONS },
+      {
+        kind: 'select',
+        key: 'orientation',
+        label: 'Orientación',
+        options: [
+          { value: 'vertical', label: 'Vertical' },
+          { value: 'horizontal', label: 'Horizontal' },
+        ],
+      },
+      { kind: 'number', key: 'customW', label: 'Ancho', min: 1, measure: true, showWhen: isCustom },
+      { kind: 'number', key: 'customH', label: 'Alto', min: 1, measure: true, showWhen: isCustom },
+      {
+        kind: 'select',
+        key: 'side',
+        label: 'Lado de página',
+        options: [
+          { value: 'derecha', label: 'Derecha (lomo izq.)' },
+          { value: 'izquierda', label: 'Izquierda (lomo der.)' },
+        ],
+      },
     ],
   },
   {
-    title: 'Center Dot',
-    controls: [
-      { kind: 'toggle', key: 'centerDot', label: 'Enabled' },
-      { kind: 'range', key: 'centerDotSize', label: 'Size', min: 1, max: 20 },
+    title: 'Grilla',
+    fields: [
+      { kind: 'number', key: 'columns', label: 'Columnas', min: 1, step: 1 },
+      { kind: 'number', key: 'rows', label: 'Filas', min: 1, step: 1 },
+      { kind: 'number', key: 'gutter', label: 'Medianil', min: 0, measure: true },
     ],
   },
   {
-    title: 'Crosshair',
-    controls: [
-      { kind: 'toggle', key: 'crosshair', label: 'Enabled' },
-      { kind: 'range', key: 'crosshairThickness', label: 'Thickness', min: 1, max: 12 },
-      { kind: 'range', key: 'crosshairLength', label: 'Length', min: 10, max: 380 },
-      { kind: 'range', key: 'crosshairGap', label: 'Center gap', min: 0, max: 200 },
+    title: 'Márgenes',
+    fields: [
+      { kind: 'number', key: 'marginTop', label: 'Superior', min: 0, measure: true },
+      { kind: 'number', key: 'marginBottom', label: 'Inferior', min: 0, measure: true },
+      { kind: 'number', key: 'marginInner', label: 'Interno', min: 0, measure: true },
+      { kind: 'number', key: 'marginOuter', label: 'Externo', min: 0, measure: true },
     ],
   },
   {
-    title: 'Circle',
-    controls: [
-      { kind: 'toggle', key: 'circle', label: 'Enabled' },
-      { kind: 'range', key: 'circleRadius', label: 'Radius', min: 10, max: 390 },
-      { kind: 'range', key: 'circleThickness', label: 'Thickness', min: 1, max: 12 },
+    title: 'Visualización',
+    fields: [
+      { kind: 'toggle', key: 'pageFill', label: 'Fondo de hoja' },
+      { kind: 'toggle', key: 'showModules', label: 'Módulos' },
+      { kind: 'toggle', key: 'showLines', label: 'Líneas' },
+      { kind: 'toggle', key: 'showMargin', label: 'Margen' },
     ],
   },
   {
-    title: 'Ranging Ticks',
-    controls: [
-      { kind: 'toggle', key: 'ticks', label: 'Enabled' },
-      { kind: 'range', key: 'tickCount', label: 'Count', min: 0, max: 12 },
-      { kind: 'range', key: 'tickLength', label: 'Width', min: 2, max: 60 },
-      { kind: 'range', key: 'tickSpacing', label: 'Spacing', min: 6, max: 80 },
+    title: 'Colores',
+    fields: [
+      { kind: 'color', key: 'lineColor', label: 'Líneas' },
+      { kind: 'color', key: 'marginColor', label: 'Margen' },
     ],
   },
 ];
 
+/**
+ * Construye el panel. onChange recibe la key que cambió para que el caller
+ * pueda reaccionar a casos especiales (p. ej. conversión al cambiar de unidad).
+ * Devuelve sync() para reflejar el estado actual en los inputs.
+ */
 export function buildControls(
   root: HTMLElement,
-  cfg: ReticleConfig,
-  onChange: () => void,
+  cfg: GridConfig,
+  onChange: (changed: keyof GridConfig) => void,
 ): () => void {
-  const inputs: Array<() => void> = [];
   root.innerHTML = '';
+  const syncers: Array<() => void> = [];
 
   for (const group of GROUPS) {
     const section = document.createElement('div');
@@ -70,69 +128,78 @@ export function buildControls(
     h.textContent = group.title;
     section.appendChild(h);
 
-    for (const ctrl of group.controls) {
+    for (const field of group.fields) {
       const row = document.createElement('label');
       row.className = 'control-row';
+
       const name = document.createElement('span');
       name.className = 'control-label';
-      name.textContent = ctrl.label;
-      row.appendChild(name);
+      const nameText = document.createElement('span');
+      nameText.textContent = field.label;
+      name.appendChild(nameText);
 
-      if (ctrl.kind === 'toggle') {
+      if (field.kind === 'number') {
+        const suffix = document.createElement('span');
+        suffix.className = 'unit-suffix';
+        if (field.measure) name.appendChild(suffix);
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        if (field.min !== undefined) input.min = String(field.min);
+        input.value = String(cfg[field.key]);
+        input.addEventListener('input', () => {
+          const v = input.value === '' ? 0 : Number(input.value);
+          if (!Number.isNaN(v)) {
+            (cfg[field.key] as number) = v;
+            onChange(field.key);
+          }
+        });
+
+        syncers.push(() => {
+          input.step = field.step !== undefined ? String(field.step) : stepFor(cfg.unit);
+          if (field.measure) suffix.textContent = cfg.unit;
+          if (document.activeElement !== input) input.value = String(round(cfg[field.key] as number));
+          if (field.showWhen) row.style.display = field.showWhen(cfg) ? '' : 'none';
+        });
+
+        row.append(name, input);
+      } else if (field.kind === 'toggle') {
         const input = document.createElement('input');
         input.type = 'checkbox';
-        input.checked = cfg[ctrl.key] as boolean;
+        input.className = 'toggle-input';
+        input.checked = cfg[field.key] as boolean;
         input.addEventListener('change', () => {
-          (cfg[ctrl.key] as boolean) = input.checked;
-          onChange();
+          (cfg[field.key] as boolean) = input.checked;
+          onChange(field.key);
         });
-        inputs.push(() => (input.checked = cfg[ctrl.key] as boolean));
-        row.appendChild(input);
-      } else if (ctrl.kind === 'range') {
-        const valueOut = document.createElement('output');
-        valueOut.textContent = String(cfg[ctrl.key]);
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = String(ctrl.min);
-        input.max = String(ctrl.max);
-        input.step = String(ctrl.step ?? 1);
-        input.value = String(cfg[ctrl.key]);
-        input.addEventListener('input', () => {
-          (cfg[ctrl.key] as number) = Number(input.value);
-          valueOut.textContent = input.value;
-          onChange();
-        });
-        inputs.push(() => {
-          input.value = String(cfg[ctrl.key]);
-          valueOut.textContent = String(cfg[ctrl.key]);
-        });
-        name.appendChild(valueOut);
-        row.appendChild(input);
-      } else if (ctrl.kind === 'color') {
+        syncers.push(() => (input.checked = cfg[field.key] as boolean));
+        row.append(name, input);
+      } else if (field.kind === 'color') {
         const input = document.createElement('input');
         input.type = 'color';
-        input.value = cfg[ctrl.key] as string;
+        input.className = 'color-input';
+        input.value = cfg[field.key] as string;
         input.addEventListener('input', () => {
-          (cfg[ctrl.key] as string) = input.value;
-          onChange();
+          (cfg[field.key] as string) = input.value;
+          onChange(field.key);
         });
-        inputs.push(() => (input.value = cfg[ctrl.key] as string));
-        row.appendChild(input);
+        syncers.push(() => (input.value = cfg[field.key] as string));
+        row.append(name, input);
       } else {
-        const input = document.createElement('select');
-        for (const opt of ctrl.options) {
+        const select = document.createElement('select');
+        for (const opt of field.options) {
           const o = document.createElement('option');
-          o.value = opt;
-          o.textContent = opt;
-          input.appendChild(o);
+          o.value = opt.value;
+          o.textContent = opt.label;
+          select.appendChild(o);
         }
-        input.value = cfg[ctrl.key] as string;
-        input.addEventListener('change', () => {
-          (cfg[ctrl.key] as string) = input.value;
-          onChange();
+        select.value = String(cfg[field.key]);
+        select.addEventListener('change', () => {
+          (cfg[field.key] as string) = select.value;
+          onChange(field.key);
         });
-        inputs.push(() => (input.value = cfg[ctrl.key] as string));
-        row.appendChild(input);
+        syncers.push(() => (select.value = String(cfg[field.key])));
+        row.append(name, select);
       }
 
       section.appendChild(row);
@@ -140,5 +207,16 @@ export function buildControls(
     root.appendChild(section);
   }
 
-  return () => inputs.forEach((sync) => sync());
+  const sync = () => syncers.forEach((s) => s());
+  sync();
+  return sync;
+}
+
+function stepFor(unit: Unit): string {
+  if (unit === 'cm' || unit === 'in') return '0.1';
+  return '1';
+}
+
+function round(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }
