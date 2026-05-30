@@ -3,37 +3,37 @@ import { createColorPicker } from './colorpicker.ts';
 
 type Option = { value: string; label: string };
 
-type Field =
-  | {
-      kind: 'number';
-      key: keyof GridConfig;
-      label: string;
-      min?: number;
-      step?: number;
-      measure?: boolean; // true => se muestra el sufijo de unidad
-      showWhen?: (cfg: GridConfig) => boolean;
-    }
-  | {
-      kind: 'select';
-      key: keyof GridConfig;
-      label: string;
-      options: Option[];
-    }
-  | {
-      kind: 'toggle';
-      key: keyof GridConfig;
-      label: string;
-    }
-  | {
-      kind: 'color';
-      key: keyof GridConfig;
-      label: string;
-      opacityKey?: keyof GridConfig;
-    };
+type FieldBase = {
+  key: keyof GridConfig;
+  label: string;
+  showWhen?: (cfg: GridConfig) => boolean;
+};
+
+type Field = FieldBase &
+  (
+    | {
+        kind: 'number';
+        min?: number;
+        step?: number;
+        measure?: boolean; // true => se muestra el sufijo de unidad
+      }
+    | {
+        kind: 'select';
+        options: Option[];
+      }
+    | {
+        kind: 'toggle';
+      }
+    | {
+        kind: 'color';
+        opacityKey?: keyof GridConfig;
+      }
+  );
 
 interface Group {
   title: string;
   fields: Field[];
+  disableWhen?: (cfg: GridConfig) => boolean;
 }
 
 const PAGE_OPTIONS: Option[] = (
@@ -46,6 +46,10 @@ const UNIT_OPTIONS: Option[] = (['mm', 'cm', 'px', 'pt', 'in'] as Unit[]).map((v
 }));
 
 const isCustom = (cfg: GridConfig) => cfg.pageSize === 'Personalizada';
+const isModular = (cfg: GridConfig) => cfg.gridType === 'modular';
+const isSquare = (cfg: GridConfig) => cfg.gridType === 'cuadricula';
+// los márgenes no aplican en una cuadrícula que no los usa
+const marginsDisabled = (cfg: GridConfig) => cfg.gridType === 'cuadricula' && !cfg.gridUseMargins;
 
 const GROUPS: Group[] = [
   {
@@ -53,6 +57,8 @@ const GROUPS: Group[] = [
     fields: [
       { kind: 'select', key: 'unit', label: 'Unidad', options: UNIT_OPTIONS },
       { kind: 'select', key: 'pageSize', label: 'Tamaño', options: PAGE_OPTIONS },
+      { kind: 'number', key: 'customW', label: 'Ancho', min: 1, measure: true, showWhen: isCustom },
+      { kind: 'number', key: 'customH', label: 'Alto', min: 1, measure: true, showWhen: isCustom },
       {
         kind: 'select',
         key: 'orientation',
@@ -62,8 +68,6 @@ const GROUPS: Group[] = [
           { value: 'horizontal', label: 'Horizontal' },
         ],
       },
-      { kind: 'number', key: 'customW', label: 'Ancho', min: 1, measure: true, showWhen: isCustom },
-      { kind: 'number', key: 'customH', label: 'Alto', min: 1, measure: true, showWhen: isCustom },
       {
         kind: 'select',
         key: 'side',
@@ -78,14 +82,27 @@ const GROUPS: Group[] = [
   {
     title: 'Grilla',
     fields: [
-      { kind: 'number', key: 'columns', label: 'Columnas', min: 1, step: 1 },
-      { kind: 'number', key: 'rows', label: 'Filas', min: 1, step: 1 },
-      { kind: 'number', key: 'gutterColumn', label: 'Medianil columnas', min: 0, measure: true },
-      { kind: 'number', key: 'gutterRow', label: 'Medianil filas', min: 0, measure: true },
+      {
+        kind: 'select',
+        key: 'gridType',
+        label: 'Tipo',
+        options: [
+          { value: 'modular', label: 'Modular / Columnas' },
+          { value: 'cuadricula', label: 'Cuadrícula' },
+        ],
+      },
+      { kind: 'number', key: 'columns', label: 'Columnas', min: 1, step: 1, showWhen: isModular },
+      { kind: 'number', key: 'rows', label: 'Filas', min: 1, step: 1, showWhen: isModular },
+      { kind: 'number', key: 'gutterColumn', label: 'Medianil columnas', min: 0, measure: true, showWhen: isModular },
+      { kind: 'number', key: 'gutterRow', label: 'Medianil filas', min: 0, measure: true, showWhen: isModular },
+      { kind: 'number', key: 'cellWidth', label: 'Ancho de celda', min: 1, measure: true, showWhen: isSquare },
+      { kind: 'number', key: 'cellHeight', label: 'Alto de celda', min: 1, measure: true, showWhen: isSquare },
+      { kind: 'toggle', key: 'gridUseMargins', label: 'Usar márgenes', showWhen: isSquare },
     ],
   },
   {
     title: 'Márgenes',
+    disableWhen: marginsDisabled,
     fields: [
       { kind: 'number', key: 'marginTop', label: 'Superior', min: 0, measure: true },
       { kind: 'number', key: 'marginBottom', label: 'Inferior', min: 0, measure: true },
@@ -97,8 +114,8 @@ const GROUPS: Group[] = [
     title: 'Visualización',
     fields: [
       { kind: 'toggle', key: 'pageFill', label: 'Fondo de hoja' },
-      { kind: 'toggle', key: 'showModules', label: 'Módulos' },
-      { kind: 'toggle', key: 'showLines', label: 'Líneas' },
+      { kind: 'toggle', key: 'showModules', label: 'Módulos', showWhen: isModular },
+      { kind: 'toggle', key: 'showLines', label: 'Líneas', showWhen: isModular },
       { kind: 'toggle', key: 'showMargin', label: 'Margen' },
     ],
   },
@@ -131,6 +148,11 @@ export function buildControls(
     const h = document.createElement('h2');
     h.textContent = group.title;
     section.appendChild(h);
+
+    if (group.disableWhen) {
+      const cond = group.disableWhen;
+      syncers.push(() => section.classList.toggle('is-disabled', cond(cfg)));
+    }
 
     for (const field of group.fields) {
       // las filas de color usan <div>: un <label> reenvía clicks al botón del
@@ -165,7 +187,6 @@ export function buildControls(
           input.step = field.step !== undefined ? String(field.step) : stepFor(cfg.unit);
           if (field.measure) suffix.textContent = cfg.unit;
           if (document.activeElement !== input) input.value = String(round(cfg[field.key] as number));
-          if (field.showWhen) row.style.display = field.showWhen(cfg) ? '' : 'none';
         });
 
         row.append(name, input);
@@ -210,6 +231,14 @@ export function buildControls(
         });
         syncers.push(() => (select.value = String(cfg[field.key])));
         row.append(name, select);
+      }
+
+      // visibilidad condicional (aplica a cualquier tipo de campo)
+      if (field.showWhen) {
+        const cond = field.showWhen;
+        syncers.push(() => {
+          row.style.display = cond(cfg) ? '' : 'none';
+        });
       }
 
       section.appendChild(row);

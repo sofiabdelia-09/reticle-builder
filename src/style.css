@@ -178,6 +178,11 @@ button.primary:hover {
   margin-bottom: 1.4rem;
 }
 
+.control-group.is-disabled {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
 .control-group h2 {
   display: flex;
   align-items: center;

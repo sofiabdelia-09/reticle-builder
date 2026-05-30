@@ -14,10 +14,18 @@ export interface GridConfig {
 
   side: PageSide; // de qué lado queda el margen interno (lomo)
 
+  gridType: 'modular' | 'cuadricula';
+
+  // grilla modular / de columnas
   columns: number;
   rows: number;
   gutterColumn: number; // medianil entre columnas, en la unidad de trabajo
   gutterRow: number; // medianil entre filas, en la unidad de trabajo
+
+  // cuadrícula
+  cellWidth: number; // tamaño de celda (ancho), en la unidad de trabajo
+  cellHeight: number; // tamaño de celda (alto)
+  gridUseMargins: boolean; // si la cuadrícula respeta los márgenes o cubre toda la hoja
 
   marginTop: number;
   marginBottom: number;
@@ -68,10 +76,16 @@ export const DEFAULT_CONFIG: GridConfig = {
 
   side: 'derecha',
 
+  gridType: 'modular',
+
   columns: 12,
   rows: 1,
   gutterColumn: 5,
   gutterRow: 5,
+
+  cellWidth: 10,
+  cellHeight: 10,
+  gridUseMargins: false,
 
   marginTop: 20,
   marginBottom: 20,

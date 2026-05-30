@@ -1,4 +1,5 @@
-import { computeGrid } from './grid.ts';
+import { computeGrid, computeSquareGrid } from './grid.ts';
+import { pageDimsMM } from './grid.ts';
 import type { GridConfig } from './types.ts';
 
 const COLOR_PAGE = '#ffffff';
@@ -9,8 +10,7 @@ interface BuildOpts {
 }
 
 export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
-  const g = computeGrid(cfg);
-  const { pageW, pageH } = g;
+  const { w: pageW, h: pageH } = pageDimsMM(cfg);
 
   // grosor de línea relativo al tamaño de página para que se vea consistente
   const stroke = Math.max(pageW, pageH) / 800;
@@ -28,6 +28,13 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
     `<rect x="0" y="0" width="${round(pageW)}" height="${round(pageH)}" fill="${cfg.pageFill ? COLOR_PAGE : 'none'}" stroke="${COLOR_PAGE_BORDER}" stroke-width="${round(stroke)}"/>`,
   );
 
+  if (cfg.gridType === 'cuadricula') {
+    drawSquare(parts, cfg, stroke, pageW, pageH);
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  const g = computeGrid(cfg);
   if (g.valid) {
     // módulos (columnas × filas)
     if (cfg.showModules) {
@@ -67,6 +74,42 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
 
   parts.push('</svg>');
   return parts.join('');
+}
+
+function drawSquare(
+  parts: string[],
+  cfg: GridConfig,
+  stroke: number,
+  pageW: number,
+  pageH: number,
+): void {
+  const sg = computeSquareGrid(cfg);
+  if (!sg.valid) {
+    parts.push(
+      `<text x="${round(pageW / 2)}" y="${round(pageH / 2)}" font-family="sans-serif" font-size="${round(Math.min(pageW, pageH) / 18)}" fill="#e5006d" text-anchor="middle">Tamaño de celda inválido</text>`,
+    );
+    return;
+  }
+
+  const { x, y, w, h } = sg.area;
+  // líneas verticales y horizontales de la cuadrícula, recortadas al área
+  for (const vx of sg.vLines) {
+    parts.push(
+      `<line x1="${round(vx)}" y1="${round(y)}" x2="${round(vx)}" y2="${round(y + h)}" stroke="${cfg.lineColor}" stroke-opacity="${cfg.lineOpacity}" stroke-width="${round(stroke)}"/>`,
+    );
+  }
+  for (const hy of sg.hLines) {
+    parts.push(
+      `<line x1="${round(x)}" y1="${round(hy)}" x2="${round(x + w)}" y2="${round(hy)}" stroke="${cfg.lineColor}" stroke-opacity="${cfg.lineOpacity}" stroke-width="${round(stroke)}"/>`,
+    );
+  }
+
+  // contorno del área (margen) solo cuando la cuadrícula respeta los márgenes
+  if (cfg.showMargin && cfg.gridUseMargins) {
+    parts.push(
+      `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" fill="none" stroke="${cfg.marginColor}" stroke-opacity="${cfg.marginOpacity}" stroke-width="${round(stroke)}"/>`,
+    );
+  }
 }
 
 function round(n: number): number {

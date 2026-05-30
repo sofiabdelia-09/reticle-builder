@@ -2,7 +2,7 @@ import './style.css';
 import { DEFAULT_CONFIG, MM_PER_UNIT, type GridConfig } from './types.ts';
 import { buildControls } from './controls.ts';
 import { buildSVG } from './svg.ts';
-import { computeGrid } from './grid.ts';
+import { computeGrid, computeSquareGrid } from './grid.ts';
 
 const preview = document.getElementById('preview')!;
 const info = document.getElementById('info')!;
@@ -17,11 +17,26 @@ function render(): void {
 }
 
 function updateInfo(): void {
-  const g = computeGrid(config);
   const f = MM_PER_UNIT[config.unit];
   const u = config.unit;
   const fmt = (mm: number) => `${(mm / f).toFixed(u === 'mm' || u === 'px' || u === 'pt' ? 1 : 2)} ${u}`;
 
+  if (config.gridType === 'cuadricula') {
+    const sg = computeSquareGrid(config);
+    if (!sg.valid) {
+      info.textContent = `Página ${fmt(sg.pageW)} × ${fmt(sg.pageH)} — tamaño de celda inválido.`;
+      return;
+    }
+    const cols = Math.max(0, sg.vLines.length - 1);
+    const rows = Math.max(0, sg.hLines.length - 1);
+    info.textContent =
+      `Página ${fmt(sg.pageW)} × ${fmt(sg.pageH)}  ·  ` +
+      `Celda ${fmt(sg.cellW)} × ${fmt(sg.cellH)}  ·  ` +
+      `${cols}×${rows} celdas`;
+    return;
+  }
+
+  const g = computeGrid(config);
   if (!g.valid) {
     info.textContent = `Página ${fmt(g.pageW)} × ${fmt(g.pageH)} — los márgenes/medianil no dejan espacio.`;
     return;
@@ -38,10 +53,14 @@ function updateInfo(): void {
 function handleChange(changed: keyof GridConfig): void {
   if (changed === 'unit' && config.unit !== prevUnit) {
     const factor = MM_PER_UNIT[prevUnit] / MM_PER_UNIT[config.unit];
-    for (const key of ['customW', 'customH', 'gutterColumn', 'gutterRow', 'marginTop', 'marginBottom', 'marginInner', 'marginOuter'] as const) {
+    for (const key of ['customW', 'customH', 'gutterColumn', 'gutterRow', 'cellWidth', 'cellHeight', 'marginTop', 'marginBottom', 'marginInner', 'marginOuter'] as const) {
       config[key] = round(config[key] * factor);
     }
     prevUnit = config.unit;
+  }
+  // Re-sincroniza para reflejar conversiones y mostrar/ocultar campos según
+  // el tamaño elegido (Personalizada) o el tipo de grilla (modular/cuadrícula).
+  if (changed === 'unit' || changed === 'pageSize' || changed === 'gridType' || changed === 'gridUseMargins') {
     syncControls();
   }
   render();

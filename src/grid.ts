@@ -91,3 +91,68 @@ export function computeGrid(cfg: GridConfig): GridGeometry {
     valid,
   };
 }
+
+export interface SquareGridGeometry {
+  pageW: number;
+  pageH: number;
+  area: Rect; // zona donde se dibuja la cuadrícula (mm)
+  vLines: number[]; // posiciones x de las líneas verticales (mm)
+  hLines: number[]; // posiciones y de las líneas horizontales (mm)
+  cellW: number; // tamaño de celda en mm
+  cellH: number;
+  valid: boolean;
+}
+
+export function computeSquareGrid(cfg: GridConfig): SquareGridGeometry {
+  const f = MM_PER_UNIT[cfg.unit];
+  const { w: pageW, h: pageH } = pageDimsMM(cfg);
+
+  const cellW = cfg.cellWidth * f;
+  const cellH = cfg.cellHeight * f;
+
+  let areaX = 0;
+  let areaY = 0;
+  let areaW = pageW;
+  let areaH = pageH;
+
+  if (cfg.gridUseMargins) {
+    const top = cfg.marginTop * f;
+    const bottom = cfg.marginBottom * f;
+    const inner = cfg.marginInner * f;
+    const outer = cfg.marginOuter * f;
+    const left = cfg.side === 'derecha' ? inner : outer;
+    const right = cfg.side === 'derecha' ? outer : inner;
+    areaX = left;
+    areaY = top;
+    areaW = pageW - left - right;
+    areaH = pageH - top - bottom;
+  }
+
+  // tope de seguridad para no generar miles de líneas con celdas diminutas
+  const valid =
+    cellW > 0 &&
+    cellH > 0 &&
+    areaW > 0 &&
+    areaH > 0 &&
+    areaW / cellW <= 2000 &&
+    areaH / cellH <= 2000;
+
+  const vLines: number[] = [];
+  const hLines: number[] = [];
+  if (valid) {
+    const eps = 1e-6;
+    for (let x = areaX; x <= areaX + areaW + eps; x += cellW) vLines.push(x);
+    for (let y = areaY; y <= areaY + areaH + eps; y += cellH) hLines.push(y);
+  }
+
+  return {
+    pageW,
+    pageH,
+    area: { x: areaX, y: areaY, w: areaW, h: areaH },
+    vLines,
+    hLines,
+    cellW,
+    cellH,
+    valid,
+  };
+}
