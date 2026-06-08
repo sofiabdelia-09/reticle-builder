@@ -8,6 +8,7 @@ interface PickerOpts {
 interface Picker {
   swatch: HTMLElement;
   sync: () => void;
+  destroy: () => void;
 }
 
 interface ActivePicker {
@@ -210,7 +211,12 @@ export function createColorPicker(opts: PickerOpts): Picker {
   document.body.appendChild(pop);
   loadFromState();
 
-  return { swatch, sync: loadFromState };
+  function destroy(): void {
+    close();
+    pop.remove();
+  }
+
+  return { swatch, sync: loadFromState, destroy };
 }
 
 // ---------- conversiones ----------
