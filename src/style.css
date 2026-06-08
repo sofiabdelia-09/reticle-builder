@@ -313,6 +313,22 @@ body {
   opacity: 1;
 }
 
+.cc-tipwrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.cc-tip-wide {
+  max-width: 260px;
+  white-space: normal;
+  text-align: left;
+}
+
+.cc-tipwrap:hover .cc-tip,
+.cc-tipwrap:focus-within .cc-tip {
+  opacity: 1;
+}
+
 .cc-hex-row {
   display: flex;
   align-items: center;

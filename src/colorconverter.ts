@@ -92,7 +92,10 @@ export function mountColorConverter(app: HTMLElement): () => void {
             <button data-exp="hex" type="button">Copiar HEX</button>
             <button data-exp="css" type="button">CSS</button>
             <button data-exp="json" type="button">JSON</button>
-            <button data-exp="ase" type="button">.ase (Adobe)</button>
+            <span class="cc-tipwrap">
+              <button data-exp="ase" type="button">.ase (Adobe)</button>
+              <span class="cc-tip cc-tip-wide"><strong>Illustrator:</strong> "Ventana" → "Muestras", menú del panel (☰) → "Añadir biblioteca de muestras" → "Otra biblioteca".<br><br><strong>Photoshop:</strong> "Ventana" → "Muestras", menú del panel (☰) → "Importar muestras" y seleccioná el archivo.</span>
+            </span>
           </div>
         </div>
       </div>
