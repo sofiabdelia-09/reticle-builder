@@ -106,6 +106,7 @@ export function mountColorConverter(app: HTMLElement): () => void {
   const copyBtn = app.querySelector<HTMLButtonElement>('#cc-copy')!;
   const groupsRoot = app.querySelector<HTMLElement>('#cc-groups')!;
   const barsRoot = app.querySelector<HTMLElement>('#cc-bars')!;
+  const scroller = app.querySelector<HTMLElement>('.cc-body')!;
 
   const inputs: Record<string, HTMLInputElement> = {};
 
@@ -209,13 +210,13 @@ export function mountColorConverter(app: HTMLElement): () => void {
     } else if (id === 'hsl') {
       rgb = hslToRgb(val('h'), val('s'), val('l'));
     }
-    renderAll();
+    renderAll(id);
   }
 
   hexInput.addEventListener('input', () => {
     if (isHex(hexInput.value)) {
       rgb = hexToRgb(hexInput.value);
-      renderAll();
+      renderAll('hex');
     }
   });
 
@@ -381,28 +382,37 @@ export function mountColorConverter(app: HTMLElement): () => void {
 
   renderPalette();
 
-  function renderAll(): void {
+  // skipGroup: grupo que el usuario está editando; sus inputs NO se reescriben
+  // (CMYK↔RGB no es inyectivo, así que re-derivar pisaría lo que se está tipeando).
+  function renderAll(skipGroup?: string): void {
+    const savedScroll = scroller.scrollTop; // preservar scroll (renderHarmony reconstruye el DOM)
     const hex = rgbToHex(rgb.r, rgb.g, rgb.b).toUpperCase();
     preview.style.background = hex;
-    if (document.activeElement !== hexInput) hexInput.value = hex;
+    if (skipGroup !== 'hex' && document.activeElement !== hexInput) hexInput.value = hex;
 
-    setIfIdle('r', rgb.r);
-    setIfIdle('g', rgb.g);
-    setIfIdle('b', rgb.b);
+    if (skipGroup !== 'rgb') {
+      setIfIdle('r', rgb.r);
+      setIfIdle('g', rgb.g);
+      setIfIdle('b', rgb.b);
+    }
 
-    const cmyk = rgbToCmyk(rgb.r, rgb.g, rgb.b);
-    setIfIdle('c', Math.round(cmyk.c));
-    setIfIdle('m', Math.round(cmyk.m));
-    setIfIdle('y', Math.round(cmyk.y));
-    setIfIdle('k', Math.round(cmyk.k));
+    if (skipGroup !== 'cmyk') {
+      const cmyk = rgbToCmyk(rgb.r, rgb.g, rgb.b);
+      setIfIdle('c', Math.round(cmyk.c));
+      setIfIdle('m', Math.round(cmyk.m));
+      setIfIdle('y', Math.round(cmyk.y));
+      setIfIdle('k', Math.round(cmyk.k));
+    }
 
     const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
     const h = Math.round(hsl.h);
     const s = Math.round(hsl.s);
     const l = Math.round(hsl.l);
-    setIfIdle('h', h);
-    setIfIdle('s', s);
-    setIfIdle('l', l);
+    if (skipGroup !== 'hsl') {
+      setIfIdle('h', h);
+      setIfIdle('s', s);
+      setIfIdle('l', l);
+    }
 
     // barras: valor + gradiente en vivo según el color actual
     if (document.activeElement !== bars.h) bars.h.value = String(h);
@@ -414,6 +424,7 @@ export function mountColorConverter(app: HTMLElement): () => void {
     bars.l.style.background = `linear-gradient(90deg, hsl(${h} ${s}% 0%), hsl(${h} ${s}% 50%), hsl(${h} ${s}% 100%))`;
 
     renderHarmony();
+    scroller.scrollTop = savedScroll; // restaurar scroll tras reconstruir armonías
   }
 
   renderAll();
