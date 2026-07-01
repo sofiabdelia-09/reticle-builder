@@ -1,16 +1,22 @@
 import { computeGrid, computeSquareGrid } from './grid.ts';
 import { pageDimsMM } from './grid.ts';
-import type { GridConfig } from './types.ts';
+import { MM_PER_UNIT, type GridConfig } from './types.ts';
 
 const COLOR_PAGE = '#ffffff';
 const COLOR_PAGE_BORDER = '#c9ced6';
 
 interface BuildOpts {
-  absolute?: boolean; // agrega width/height en mm (para exportar a tamaño real)
+  absolute?: boolean; // agrega width/height (para exportar a tamaño real en la unidad de trabajo)
 }
 
 export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
   const { w: pageW, h: pageH } = pageDimsMM(cfg);
+
+  // El SVG se emite en el sistema de coordenadas de la unidad de trabajo:
+  // así, en px, todo queda en px (sin mm que un editor pueda reinterpretar a otro dpi).
+  const f = MM_PER_UNIT[cfg.unit];
+  const vbW = pageW / f;
+  const vbH = pageH / f;
 
   // grosor de línea relativo al tamaño de página para que se vea consistente
   const stroke = Math.max(pageW, pageH) / 800;
@@ -18,10 +24,13 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
   const parts: string[] = [];
 
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${round(pageW)} ${round(pageH)}"` +
-      (opts.absolute ? ` width="${round(pageW)}mm" height="${round(pageH)}mm"` : '') +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${round(vbW)} ${round(vbH)}"` +
+      (opts.absolute ? ` width="${round(vbW)}${cfg.unit}" height="${round(vbH)}${cfg.unit}"` : '') +
       ` preserveAspectRatio="xMidYMid meet">`,
   );
+
+  // el contenido se dibuja en mm; este grupo lo lleva a la unidad de trabajo
+  parts.push(`<g transform="scale(${1 / f})">`);
 
   // hoja: relleno opcional + contorno siempre visible (= tamaño de página)
   parts.push(
@@ -30,7 +39,7 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
 
   if (cfg.gridType === 'cuadricula') {
     drawSquare(parts, cfg, stroke, pageW, pageH);
-    parts.push('</svg>');
+    parts.push('</g></svg>');
     return parts.join('');
   }
 
@@ -72,7 +81,7 @@ export function buildSVG(cfg: GridConfig, opts: BuildOpts = {}): string {
     );
   }
 
-  parts.push('</svg>');
+  parts.push('</g></svg>');
   return parts.join('');
 }
 

@@ -1,7 +1,7 @@
 import { DEFAULT_CONFIG, MM_PER_UNIT, type GridConfig } from './types.ts';
 import { buildControls } from './controls.ts';
 import { buildSVG } from './svg.ts';
-import { computeGrid, computeSquareGrid } from './grid.ts';
+import { computeGrid, computeSquareGrid, pageDimsMM } from './grid.ts';
 
 const TEMPLATE = `
   <div class="tool-reticulas">
@@ -115,11 +115,19 @@ export function mountReticulas(app: HTMLElement): () => void {
   });
 
   async function exportPNG(): Promise<void> {
-    const DPI = 300;
-    const g = computeGrid(config);
-    const pxPerMM = DPI / 25.4;
-    const w = Math.round(g.pageW * pxPerMM);
-    const h = Math.round(g.pageH * pxPerMM);
+    const { w: pageWmm, h: pageHmm } = pageDimsMM(config);
+    let w: number;
+    let h: number;
+    if (config.unit === 'px') {
+      // en px: rasterizar 1:1 (el tamaño exacto que puso el usuario)
+      w = Math.round(pageWmm / MM_PER_UNIT.px);
+      h = Math.round(pageHmm / MM_PER_UNIT.px);
+    } else {
+      // en unidades físicas: 300 DPI
+      const pxPerMM = 300 / 25.4;
+      w = Math.round(pageWmm * pxPerMM);
+      h = Math.round(pageHmm * pxPerMM);
+    }
 
     const svg = buildSVG(config, { absolute: true });
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
