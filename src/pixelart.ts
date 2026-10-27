@@ -26,6 +26,29 @@ function loadCCPalette(): string[] {
   }
 }
 
+const SESSION_KEY = 'dt-pixelart-session'; // autosave del trabajo en curso
+const SESSION_MAX_DIM = 1200; // tope de la copia de imagen que se guarda
+
+// Copia acotada de la imagen (PNG, conserva transparencia) para persistir sin
+// reventar el cupo de localStorage; alcanza para re-pixelar.
+function cappedDataURL(img: HTMLImageElement): string {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  let w = iw;
+  let h = ih;
+  const m = Math.max(iw, ih);
+  if (m > SESSION_MAX_DIM) {
+    const r = SESSION_MAX_DIM / m;
+    w = Math.max(1, Math.round(iw * r));
+    h = Math.max(1, Math.round(ih * r));
+  }
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  c.getContext('2d')!.drawImage(img, 0, 0, w, h);
+  return c.toDataURL('image/png');
+}
+
 // Parsea una lista de HEX pegada (una por línea, o separadas por coma/espacio).
 function parseHexList(text: string): string[] {
   const out: string[] = [];
@@ -87,6 +110,7 @@ interface State {
   brushSize: number; // lado del pincel en celdas (1 = una celda)
   erasing: boolean;
   showGrid: boolean;
+  zoom: number; // 1 = ajustar a la vista; >1 = acercar
   isolate: string | null; // color aislado (modo capa)
   grid: PixelGrid | null;
 }
@@ -118,6 +142,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     brushSize: 1,
     erasing: false,
     showGrid: false,
+    zoom: 1,
     isolate: null,
     grid: null,
   };
@@ -129,6 +154,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
   let redoStack: Cell[][] = [];
   let renderHistory = (): void => {};
   let renderLayers = (): void => {};
+  let renderZoom = (): void => {};
 
   function resetHistory(): void {
     undoStack = [];
@@ -152,6 +178,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     paint();
     renderLayers();
     renderHistory();
+    scheduleSave();
   }
 
   function redo(): void {
@@ -161,6 +188,65 @@ export function mountPixelArt(app: HTMLElement): () => void {
     paint();
     renderLayers();
     renderHistory();
+    scheduleSave();
+  }
+
+  // ---- autosave en localStorage (para no perder el progreso al salir/volver) ----
+  let imgDataURL: string | null = null;
+  let saveTimer: number | null = null;
+
+  function scheduleSave(): void {
+    if (saveTimer != null) clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveSession, 500);
+  }
+
+  function saveSession(): void {
+    if (saveTimer != null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    if (!state.grid) return;
+    const snapshot = {
+      cols: state.cols,
+      cellPx: state.cellPx,
+      grayscale: state.grayscale,
+      alphaThreshold: state.alphaThreshold,
+      removeBg: state.removeBg,
+      bgColor: state.bgColor,
+      bgTolerance: state.bgTolerance,
+      paletteId: state.paletteId,
+      brush: state.brush,
+      brushSize: state.brushSize,
+      showGrid: state.showGrid,
+    };
+    const base = { v: 1, state: snapshot, grid: state.grid };
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, img: imgDataURL }));
+    } catch {
+      // sin lugar para la imagen: guardar al menos la grilla y los ajustes
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, img: null }));
+      } catch {
+        /* localStorage lleno: no se pudo guardar */
+      }
+    }
+  }
+
+  interface Session {
+    img: string | null;
+    grid: PixelGrid;
+    state: Record<string, unknown>;
+  }
+  function loadSession(): Session | null {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      const o = JSON.parse(raw);
+      if (!o || !o.grid || !o.state || !Array.isArray(o.grid.cells)) return null;
+      return o as Session;
+    } catch {
+      return null;
+    }
   }
 
   // ---- paleta activa (colores a los que se reduce la imagen / del pincel) ----
@@ -191,6 +277,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     fitCanvas();
     updateInfo();
     renderLayers();
+    scheduleSave();
   }
 
   function paint(): void {
@@ -202,15 +289,24 @@ export function mountPixelArt(app: HTMLElement): () => void {
     const availW = stage.clientWidth - 32;
     const availH = stage.clientHeight - 32;
     if (availW <= 0 || availH <= 0) return;
-    const scale = Math.max(1, Math.min(availW / state.grid.cols, availH / state.grid.rows));
+    // escala base = ajustar a la vista; el zoom la multiplica
+    const base = Math.max(1, Math.min(availW / state.grid.cols, availH / state.grid.rows));
+    const scale = base * state.zoom;
     const w = state.grid.cols * scale;
     const h = state.grid.rows * scale;
     canvasWrap.style.width = `${w}px`;
     canvasWrap.style.height = `${h}px`;
+    stage.classList.toggle('pa-zoomed', state.zoom > 1.001);
     // grilla superpuesta: una línea por celda, al tamaño mostrado
     const cell = w / state.grid.cols;
     gridOverlay.style.backgroundSize = `${cell}px ${cell}px`;
     gridOverlay.hidden = !state.showGrid || cell < 4;
+  }
+
+  function setZoom(z: number): void {
+    state.zoom = Math.min(16, Math.max(1, z));
+    fitCanvas();
+    renderZoom();
   }
 
   function updateInfo(): void {
@@ -232,6 +328,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
       const img = new Image();
       img.onload = () => {
         state.img = img;
+        imgDataURL = cappedDataURL(img); // copia para autosave
         state.bgColor = cornerColor(img); // candidato de fondo prellenado
         empty.hidden = true;
         canvasWrap.hidden = false;
@@ -322,7 +419,10 @@ export function mountPixelArt(app: HTMLElement): () => void {
     const c = cellFromEvent(e);
     if (c) paintAt(c.x, c.y);
   });
-  canvas.addEventListener('pointerup', () => renderLayers());
+  canvas.addEventListener('pointerup', () => {
+    renderLayers();
+    scheduleSave();
+  });
 
   // reemplaza todas las celdas de un color por otro (o por transparente)
   function bulkReplace(from: string, to: Cell): void {
@@ -365,6 +465,41 @@ export function mountPixelArt(app: HTMLElement): () => void {
     uploadLabel.appendChild(fileInput);
     gImg.appendChild(uploadLabel);
 
+    // --- Vista (zoom) ---
+    const gView = group('Vista');
+    const zoomHead = document.createElement('div');
+    zoomHead.className = 'control-label';
+    const zoomLbl = document.createElement('span');
+    zoomLbl.textContent = 'Zoom';
+    const zoomBadge = document.createElement('span');
+    zoomBadge.className = 'pa-value';
+    zoomHead.append(zoomLbl, zoomBadge);
+    gView.appendChild(zoomHead);
+    const zoomRow = document.createElement('div');
+    zoomRow.className = 'pa-brush-row';
+    const zoomOut = document.createElement('button');
+    zoomOut.type = 'button';
+    zoomOut.textContent = '−';
+    zoomOut.addEventListener('click', () => setZoom(state.zoom / 1.25));
+    const zoomIn = document.createElement('button');
+    zoomIn.type = 'button';
+    zoomIn.textContent = '+';
+    zoomIn.addEventListener('click', () => setZoom(state.zoom * 1.25));
+    const zoomFit = document.createElement('button');
+    zoomFit.type = 'button';
+    zoomFit.textContent = 'Ajustar';
+    zoomFit.addEventListener('click', () => setZoom(1));
+    zoomRow.append(zoomOut, zoomIn, zoomFit);
+    gView.appendChild(zoomRow);
+    const zoomHint = document.createElement('p');
+    zoomHint.className = 'pa-hint';
+    zoomHint.textContent = 'Ctrl + rueda del mouse sobre la imagen para acercar/alejar.';
+    gView.appendChild(zoomHint);
+    renderZoom = () => {
+      zoomBadge.textContent = `${Math.round(state.zoom * 100)}%`;
+      zoomOut.disabled = state.zoom <= 1.001;
+    };
+
     // --- Pixelado ---
     const gPix = group('Pixelado');
     gPix.appendChild(
@@ -377,6 +512,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
       numberRow('Tamaño de celda (px)', state.cellPx, 1, 100, (v) => {
         state.cellPx = v;
         updateInfo();
+        scheduleSave();
       }),
     );
     gPix.appendChild(
@@ -399,6 +535,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
       toggleRow('Mostrar grilla', state.showGrid, (v) => {
         state.showGrid = v;
         fitCanvas();
+        scheduleSave();
       }),
     );
 
@@ -589,6 +726,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     gBrush.appendChild(
       rangeRow('Tamaño del pincel', state.brushSize, 1, 12, 1, (v) => {
         state.brushSize = v;
+        scheduleSave();
       }),
     );
 
@@ -673,6 +811,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
           state.isolate = state.brush;
           paint();
           renderLayers();
+          scheduleSave();
         });
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
@@ -684,6 +823,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
           state.isolate = null;
           paint();
           renderLayers();
+          scheduleSave();
         });
         const clearSel = document.createElement('button');
         clearSel.type = 'button';
@@ -743,6 +883,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     renderBrushes();
     renderHistory();
     renderLayers();
+    renderZoom();
   }
 
   function group(title: string): HTMLElement {
@@ -833,6 +974,57 @@ export function mountPixelArt(app: HTMLElement): () => void {
 
   buildControls();
 
+  // ====================== restaurar sesión guardada ======================
+  (function restoreSession(): void {
+    const session = loadSession();
+    if (!session) return;
+    const s = session.state;
+    const num = (k: string, def: number) => (typeof s[k] === 'number' ? (s[k] as number) : def);
+    const bool = (k: string, def: boolean) => (typeof s[k] === 'boolean' ? (s[k] as boolean) : def);
+    const str = (k: string, def: string) => (typeof s[k] === 'string' ? (s[k] as string) : def);
+    state.cols = num('cols', state.cols);
+    state.cellPx = num('cellPx', state.cellPx);
+    state.grayscale = bool('grayscale', state.grayscale);
+    state.alphaThreshold = num('alphaThreshold', state.alphaThreshold);
+    state.removeBg = bool('removeBg', state.removeBg);
+    state.bgColor = str('bgColor', state.bgColor);
+    state.bgTolerance = num('bgTolerance', state.bgTolerance);
+    state.paletteId = str('paletteId', state.paletteId);
+    state.brush = str('brush', state.brush);
+    state.brushSize = num('brushSize', state.brushSize);
+    state.showGrid = bool('showGrid', state.showGrid);
+
+    const finalize = (): void => {
+      state.grid = {
+        cols: session.grid.cols,
+        rows: session.grid.rows,
+        cells: session.grid.cells,
+      };
+      state.isolate = null;
+      empty.hidden = true;
+      canvasWrap.hidden = false;
+      buildControls();
+      resetHistory();
+      paint();
+      fitCanvas();
+      updateInfo();
+      renderLayers();
+    };
+
+    if (session.img) {
+      imgDataURL = session.img;
+      const img = new Image();
+      img.onload = () => {
+        state.img = img;
+        finalize();
+      };
+      img.onerror = () => finalize(); // sin imagen: igual mostramos el progreso
+      img.src = session.img;
+    } else {
+      finalize();
+    }
+  })();
+
   // ====================== exportación ======================
   function guard(): PixelGrid | null {
     if (!state.grid) {
@@ -873,6 +1065,14 @@ export function mountPixelArt(app: HTMLElement): () => void {
   const onResize = () => fitCanvas();
   window.addEventListener('resize', onResize);
 
+  // Ctrl/⌘ + rueda = zoom; sin modificador el stage hace scroll normal
+  const onWheel = (e: WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey) || !state.grid) return;
+    e.preventDefault();
+    setZoom(state.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+  };
+  stage.addEventListener('wheel', onWheel, { passive: false });
+
   const onKey = (e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -890,9 +1090,11 @@ export function mountPixelArt(app: HTMLElement): () => void {
 
   // cleanup al desmontar la vista
   return () => {
+    saveSession(); // flush: asegura guardar lo último antes de salir
     mobileMq.removeEventListener('change', placeExportActions);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('keydown', onKey);
+    stage.removeEventListener('wheel', onWheel);
     pickers.forEach((p) => p.destroy());
   };
 

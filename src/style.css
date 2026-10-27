@@ -1138,8 +1138,18 @@ button.primary:hover {
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: auto;
   border-radius: 10px;
   transition: box-shadow 0.15s;
+}
+
+/* al acercar, el contenido desborda: alinear arriba-izquierda y permitir scroll */
+.pa-stage.pa-zoomed {
+  align-items: safe start;
+  justify-content: safe start;
+}
+.pa-stage.pa-zoomed .pa-canvas-wrap {
+  margin: auto;
 }
 
 .stage.is-dragover .pa-stage {
@@ -1157,8 +1167,7 @@ button.primary:hover {
 
 .pa-canvas-wrap {
   position: relative;
-  max-width: 100%;
-  max-height: 100%;
+  flex: none;
   border-radius: 4px;
   overflow: hidden;
   /* ajedrez para zonas transparentes */
