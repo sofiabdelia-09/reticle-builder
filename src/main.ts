@@ -2,6 +2,7 @@ import './style.css';
 import { renderHome } from './home.ts';
 import { mountReticulas } from './reticulas.ts';
 import { mountColorConverter } from './colorconverter.ts';
+import { mountPixelArt } from './pixelart.ts';
 
 const app = document.getElementById('app')!;
 let cleanup: (() => void) | null = null;
@@ -18,6 +19,8 @@ function route(): void {
     cleanup = mountReticulas(app);
   } else if (path === '/color') {
     cleanup = mountColorConverter(app);
+  } else if (path === '/pixel') {
+    cleanup = mountPixelArt(app);
   } else {
     renderHome(app);
   }

@@ -11,6 +11,13 @@ const colorIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
   <path d="M12 22a10 10 0 1 1 0-20 8.5 8.5 0 0 1 8.5 8.5c0 2-1.5 3.5-3.5 3.5h-1.7a1.8 1.8 0 0 0-1.3 3 1.8 1.8 0 0 1-1 5z"/>
 </svg>`;
 
+const pixelIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="3" y="3" width="18" height="18" rx="1.5"/>
+  <path d="M8 3v18M13 3v18M3 8h18M3 13h18"/>
+  <rect x="13" y="13" width="5" height="5" rx="0.5" fill="currentColor" stroke="none"/>
+  <rect x="3" y="8" width="5" height="5" rx="0.5" fill="currentColor" stroke="none"/>
+</svg>`;
+
 const soonIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="9"/>
   <path d="M12 8v8M8 12h8"/>
@@ -36,6 +43,12 @@ const TOOLS: ToolCard[] = [
     icon: colorIcon,
     title: 'Conversor de Color',
     desc: 'Convertí entre CMYK, RGB, HEX y HSL al instante, con vista previa del color.',
+  },
+  {
+    href: '#/pixel',
+    icon: pixelIcon,
+    title: 'Generador de Pixel Art',
+    desc: 'Convertí imágenes a pixel art con paletas, editá celda por celda y exportá a SVG (rects) o PNG.',
   },
   {
     icon: soonIcon,

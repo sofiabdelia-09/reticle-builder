@@ -52,7 +52,8 @@ body {
 }
 
 .tool-reticulas,
-.tool-color {
+.tool-color,
+.tool-pixelart {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1034,6 +1035,7 @@ button.primary:hover {
   }
   .tool-reticulas,
   .tool-color,
+  .tool-pixelart,
   .home {
     flex: none;
     overflow: visible;
@@ -1124,5 +1126,181 @@ button.primary:hover {
     width: 100%;
     text-align: center;
     padding: 0.85rem;
+  }
+}
+
+/* ---------- Generador de Pixel Art ---------- */
+.pa-stage {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border-radius: 10px;
+  transition: box-shadow 0.15s;
+}
+
+.stage.is-dragover .pa-stage {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.pa-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 2rem;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.pa-canvas-wrap {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  /* ajedrez para zonas transparentes */
+  background-color: #1b1b1b;
+  background-image:
+    linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 1px rgba(51, 255, 136, 0.25);
+}
+
+.pa-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pa-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.25) 1px, transparent 1px);
+  background-position: 0 0;
+}
+
+.pa-upload {
+  display: block;
+  text-align: center;
+}
+
+.pa-value {
+  color: var(--accent-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pa-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.pa-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #19c96a);
+  border: none;
+  box-shadow: 0 0 8px rgba(51, 255, 136, 0.5);
+}
+.pa-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #19c96a);
+}
+
+.pa-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 0.6rem;
+}
+
+.pa-sw {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.pa-sw:hover {
+  transform: translateY(-1px);
+}
+.pa-sw.is-active {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 10px rgba(51, 255, 136, 0.5);
+  border-color: transparent;
+}
+.pa-sw-del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 13px;
+  text-align: center;
+}
+.pa-sw-del:hover {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+.pa-custom-actions,
+.pa-brush-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pa-custom-actions .cp-swatch,
+.pa-brush-row .cp-swatch {
+  width: 46px;
+  flex: none;
+}
+.pa-eraser.is-active {
+  background: linear-gradient(135deg, var(--accent), #19c96a);
+  color: #04140a;
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.pa-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .pa-stage {
+    min-height: 50vh;
   }
 }

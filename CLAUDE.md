@@ -19,7 +19,7 @@ No hay tests ni linter configurados. **`npm run build` es la verificación**: co
 
 ## Arquitectura
 
-SPA con **router por hash** en `main.ts`. Rutas: `#/` (home), `#/reticulas`, `#/color`. Cada herramienta expone una función `mount(app): () => void` que inyecta su markup en el contenedor y devuelve una función de limpieza; el router la llama al cambiar de vista. `index.html` es sólo `<div id="app"></div>`.
+SPA con **router por hash** en `main.ts`. Rutas: `#/` (home), `#/reticulas`, `#/color`, `#/pixel`. Cada herramienta expone una función `mount(app): () => void` que inyecta su markup en el contenedor y devuelve una función de limpieza; el router la llama al cambiar de vista. `index.html` es sólo `<div id="app"></div>`.
 
 - **`home.ts`** — grilla de tarjetas hacia cada herramienta.
 - **`reticulas.ts`** — Constructor de Retículas. Mantiene un `GridConfig`, arma el panel con `buildControls`, y en cada cambio re-renderiza el SVG. Usa:
@@ -30,6 +30,10 @@ SPA con **router por hash** en `main.ts`. Rutas: `#/` (home), `#/reticulas`, `#/
 - **`colorconverter.ts`** — Conversor de Color. Estado canónico: un `rgb`. Usa:
   - **`color.ts`** — conversiones puras HEX/RGB/CMYK/HSL y `harmony()`.
   - **`ase.ts`** — genera un archivo `.ase` (Adobe Swatch Exchange, binario big-endian) a mano.
+- **`pixelart.ts`** — Generador de Pixel Art. Carga una imagen (upload o drag&drop), la submuestrea a una grilla de celdas, permite **editar celda por celda** con pincel/goma, **editar por color** (aislar un color y reemplazarlo/borrarlo en bloque), deshacer/rehacer (Ctrl+Z / Ctrl+Shift+Z), elegir paleta y exportar. Usa:
+  - **`pixelize.ts`** — lógica pura: `gridFromImage` (submuestreo con **promedio ponderado por alfa** + umbral de cobertura `alphaThreshold`, para que el fondo transparente de un PNG no ensucie el contorno con gris; luego gris y ajuste a paleta por color más cercano, como `convertPalette` de pixelit), `drawGrid` (pinta la grilla 1px/celda en el canvas, que se escala con `image-rendering: pixelated`; con `isolate` atenúa todo salvo un color), `distinctColors`, `gridToSVG` (**SVG a mano, un `<rect>` por tramo contiguo del mismo color**, viewBox en unidades de celda), `gridToPNG`.
+  - **`palettes.ts`** — las ~12 paletas de arte pixel de pixelit como HEX.
+  - El estado canónico es una `PixelGrid` (celdas HEX o `null` = transparente). Cambiar resolución/gris/paleta/umbral **reconstruye** la grilla desde la imagen y resetea el historial y los retoques manuales; eso es intencional (se pixela primero, se retoca después). El historial guarda snapshots de `cells` (una entrada por trazo o por operación en bloque). La paleta personalizada se persiste en localStorage (`dt-pixelart-palette`).
 - **`colorpicker.ts`** — selector reutilizable (área SV + tono + alfa) en un popover anclado a `<body>`.
 - **`style.css`** — un único stylesheet global, tema oscuro, con media query mobile (≤760px) que pasa a scroll de documento.
 
