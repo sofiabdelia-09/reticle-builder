@@ -1,3 +1,4 @@
+import { isHex } from './color.ts';
 import { createColorPicker } from './colorpicker.ts';
 import { PALETTES } from './palettes.ts';
 import {
@@ -12,6 +13,33 @@ import {
 } from './pixelize.ts';
 
 const CUSTOM_KEY = 'dt-pixelart-palette';
+const CC_PALETTE_KEY = 'dt-palette'; // "Mi paleta" del Conversor de Color
+
+// Lee la paleta guardada en el Conversor de Color (lista de HEX en localStorage).
+function loadCCPalette(): string[] {
+  try {
+    const raw = localStorage.getItem(CC_PALETTE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+// Parsea una lista de HEX pegada (una por línea, o separadas por coma/espacio).
+function parseHexList(text: string): string[] {
+  const out: string[] = [];
+  for (let token of text.split(/[\s,;]+/)) {
+    token = token.trim();
+    if (!token) continue;
+    if (!token.startsWith('#')) token = '#' + token;
+    if (isHex(token)) {
+      const hex = token.toUpperCase();
+      if (!out.includes(hex)) out.push(hex);
+    }
+  }
+  return out;
+}
 
 const TEMPLATE = `
   <div class="tool-pixelart">
@@ -139,6 +167,10 @@ export function mountPixelArt(app: HTMLElement): () => void {
   function activePalette(): string[] | null {
     if (state.paletteId === 'original') return null;
     if (state.paletteId === 'custom') return customPalette.length ? customPalette : null;
+    if (state.paletteId === 'cc') {
+      const cc = loadCCPalette();
+      return cc.length ? cc : null;
+    }
     const p = PALETTES.find((x) => x.id === state.paletteId);
     return p ? p.colors : null;
   }
@@ -423,8 +455,10 @@ export function mountPixelArt(app: HTMLElement): () => void {
 
     // --- Paleta ---
     const gPal = group('Paleta');
+    const ccCount = loadCCPalette().length;
     const opts = [
       { value: 'original', label: 'Original (sin paleta)' },
+      { value: 'cc', label: `Mi paleta del Conversor${ccCount ? ` · ${ccCount} colores` : ' (vacía)'}` },
       ...PALETTES.map((p) => ({ value: p.id, label: p.name })),
       { value: 'custom', label: 'Personalizada' },
     ];
@@ -482,6 +516,47 @@ export function mountPixelArt(app: HTMLElement): () => void {
       });
       customControls.append(addPicker.swatch, addBtn, clearBtn);
       gPal.appendChild(customControls);
+
+      // importar lista de HEX pegada
+      const importWrap = document.createElement('div');
+      importWrap.className = 'pa-import';
+      const ta = document.createElement('textarea');
+      ta.placeholder = 'Pegá colores HEX, uno por línea:\n#1ABC9C\n#E74C3C\n…';
+      ta.spellcheck = false;
+      ta.rows = 4;
+      const importRow = document.createElement('div');
+      importRow.className = 'pa-custom-actions';
+      const importBtn = document.createElement('button');
+      importBtn.type = 'button';
+      importBtn.textContent = 'Importar lista';
+      importBtn.addEventListener('click', () => {
+        const parsed = parseHexList(ta.value);
+        if (!parsed.length) {
+          ta.placeholder = 'No se encontraron HEX válidos (ej. #1ABC9C).';
+          return;
+        }
+        customPalette = parsed;
+        saveCustom();
+        ta.value = '';
+        const pal = activePalette();
+        if (pal && pal.length) state.brush = pal[0];
+        renderBrushes();
+        regrid();
+      });
+      const fromCCBtn = document.createElement('button');
+      fromCCBtn.type = 'button';
+      fromCCBtn.textContent = 'Traer del Conversor';
+      fromCCBtn.addEventListener('click', () => {
+        const cc = loadCCPalette();
+        if (!cc.length) return;
+        for (const hex of cc) if (!customPalette.includes(hex)) customPalette.push(hex);
+        saveCustom();
+        renderBrushes();
+        regrid();
+      });
+      importRow.append(importBtn, fromCCBtn);
+      importWrap.append(ta, importRow);
+      gPal.appendChild(importWrap);
     }
 
     // --- Pincel ---

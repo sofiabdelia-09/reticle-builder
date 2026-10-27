@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "src/style.css"
+        ],
+        "createdAt": "2026-10-27T22:58:36.119Z",
+        "reason": "pre-existing brand headings (home title + topbar h1); intentional, predate this work, user aware"
+      }
+    ]
+  }
+}
