@@ -1203,7 +1203,11 @@ button.primary:hover {
 
 .pa-upload {
   display: block;
+  width: 100%;
   text-align: center;
+}
+.pa-upload + .pa-upload {
+  margin-top: 0.5rem;
 }
 
 .pa-value {

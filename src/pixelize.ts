@@ -211,7 +211,16 @@ export function drawGrid(canvas: HTMLCanvasElement, grid: PixelGrid, isolate?: s
  * transparente). El viewBox está en unidades de celda y width/height escalan
  * parejo por `cellPx`, así cada rect queda siempre cuadrado.
  */
-export function gridToSVG(grid: PixelGrid, cellPx: number): string {
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+export function gridToSVG(
+  grid: PixelGrid,
+  cellPx: number,
+  meta?: string[],
+  config?: Record<string, unknown>,
+): string {
   const { cols, rows, cells } = grid;
   const w = cols * cellPx;
   const h = rows * cellPx;
@@ -223,12 +232,82 @@ export function gridToSVG(grid: PixelGrid, cellPx: number): string {
       rects.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${fill}"/>`);
     }
   }
+
+  // Configuración usada: comentario XML (humano) + <desc> (texto) + <metadata>
+  // con JSON (para reimportar y restaurar los ajustes).
+  let comment = '';
+  let desc = '';
+  if (meta && meta.length) {
+    const safe = meta.map((l) => l.replace(/--/g, '—')); // '--' rompe los comentarios XML
+    comment = `<!--\n${safe.map((l) => `  ${l}`).join('\n')}\n-->\n`;
+    desc = `  <desc>${xmlEscape(meta.join(' | '))}</desc>\n`;
+  }
+  const metadata = config
+    ? `  <metadata id="dt-pixelart">${xmlEscape(JSON.stringify(config))}</metadata>\n`
+    : '';
+
   return (
+    comment +
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" ` +
     `viewBox="0 0 ${cols} ${rows}" shape-rendering="crispEdges">\n` +
+    metadata +
+    desc +
     rects.join('\n') +
     `\n</svg>`
   );
+}
+
+/** Reconstruye grilla + config desde un SVG exportado por esta herramienta. */
+export interface ImportedSVG {
+  grid: PixelGrid;
+  config: Record<string, unknown> | null;
+}
+export function gridFromSVG(text: string): ImportedSVG | null {
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  const svg = doc.querySelector('svg');
+  if (!svg || doc.querySelector('parsererror')) return null;
+
+  let config: Record<string, unknown> | null = null;
+  const metaEl = doc.querySelector('metadata#dt-pixelart');
+  if (metaEl?.textContent) {
+    try {
+      config = JSON.parse(metaEl.textContent);
+    } catch {
+      /* metadata ilegible */
+    }
+  }
+
+  // tamaño de la grilla: del viewBox (en unidades de celda)
+  let cols = 0;
+  let rows = 0;
+  const vb = svg.getAttribute('viewBox');
+  if (vb) {
+    const p = vb.split(/[\s,]+/).map(Number);
+    cols = Math.round(p[2]);
+    rows = Math.round(p[3]);
+  }
+  if (config && typeof config.cols === 'number' && typeof config.rows === 'number') {
+    cols = config.cols;
+    rows = config.rows;
+  }
+  if (!cols || !rows || cols < 1 || rows < 1) return null;
+
+  const cells: Cell[] = new Array(cols * rows).fill(null);
+  doc.querySelectorAll('rect').forEach((r) => {
+    const x = Math.round(parseFloat(r.getAttribute('x') || '0'));
+    const y = Math.round(parseFloat(r.getAttribute('y') || '0'));
+    const rw = Math.max(1, Math.round(parseFloat(r.getAttribute('width') || '1')));
+    const rh = Math.max(1, Math.round(parseFloat(r.getAttribute('height') || '1')));
+    const fill = (r.getAttribute('fill') || '').trim();
+    const value = !fill || fill === 'transparent' || fill === 'none' ? null : fill.toUpperCase();
+    for (let yy = y; yy < y + rh && yy < rows; yy++) {
+      for (let xx = x; xx < x + rw && xx < cols; xx++) {
+        if (xx >= 0 && yy >= 0) cells[yy * cols + xx] = value;
+      }
+    }
+  });
+
+  return { grid: { cols, rows, cells }, config };
 }
 
 /** Rasteriza la grilla a PNG con celdas nítidas de `cellPx` px. */

@@ -6,6 +6,7 @@ import {
   distinctColors,
   drawGrid,
   gridFromImage,
+  gridFromSVG,
   gridToPNG,
   gridToSVG,
   type Cell,
@@ -340,7 +341,49 @@ export function mountPixelArt(app: HTMLElement): () => void {
     reader.readAsDataURL(file);
   }
 
-  // drag & drop sobre el stage
+  // Importa un SVG exportado por la herramienta: reconstruye la grilla y,
+  // si trae metadata, restaura los ajustes usados.
+  function importSVG(text: string): void {
+    const res = gridFromSVG(text);
+    if (!res) {
+      alert('No pude leer el SVG.');
+      return;
+    }
+    const cfg = res.config;
+    if (cfg) {
+      if (typeof cfg.cellPx === 'number') state.cellPx = cfg.cellPx;
+      if (typeof cfg.grayscale === 'boolean') state.grayscale = cfg.grayscale;
+      if (typeof cfg.alphaThreshold === 'number') state.alphaThreshold = cfg.alphaThreshold;
+      if (typeof cfg.removeBg === 'boolean') state.removeBg = cfg.removeBg;
+      if (typeof cfg.bgColor === 'string') state.bgColor = cfg.bgColor;
+      if (typeof cfg.bgTolerance === 'number') state.bgTolerance = cfg.bgTolerance;
+      if (typeof cfg.paletteId === 'string') state.paletteId = cfg.paletteId;
+      if (typeof cfg.brush === 'string') state.brush = cfg.brush;
+      if (typeof cfg.brushSize === 'number') state.brushSize = cfg.brushSize;
+      if (typeof cfg.showGrid === 'boolean') state.showGrid = cfg.showGrid;
+      if (Array.isArray(cfg.customPalette)) {
+        customPalette = cfg.customPalette.filter((x): x is string => typeof x === 'string');
+        saveCustom();
+      }
+    }
+    state.cols = res.grid.cols;
+    state.grid = res.grid;
+    state.img = null; // el SVG no trae la imagen original
+    imgDataURL = null;
+    state.isolate = null;
+    state.zoom = 1;
+    empty.hidden = true;
+    canvasWrap.hidden = false;
+    buildControls();
+    resetHistory();
+    paint();
+    fitCanvas();
+    updateInfo();
+    renderLayers();
+    scheduleSave();
+  }
+
+  // drag & drop sobre el stage (imágenes o un .svg exportado)
   stage.addEventListener('dragover', (e) => {
     e.preventDefault();
     stage.classList.add('is-dragover');
@@ -350,7 +393,14 @@ export function mountPixelArt(app: HTMLElement): () => void {
     e.preventDefault();
     stage.classList.remove('is-dragover');
     const file = e.dataTransfer?.files?.[0];
-    if (file) loadFile(file);
+    if (!file) return;
+    if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+      const rdr = new FileReader();
+      rdr.onload = () => importSVG(String(rdr.result));
+      rdr.readAsText(file);
+    } else {
+      loadFile(file);
+    }
   });
 
   // ====================== edición manual (pincel) ======================
@@ -464,6 +514,26 @@ export function mountPixelArt(app: HTMLElement): () => void {
     });
     uploadLabel.appendChild(fileInput);
     gImg.appendChild(uploadLabel);
+
+    const importLabel = document.createElement('label');
+    importLabel.className = 'pa-upload';
+    importLabel.textContent = 'Importar SVG';
+    importLabel.title = 'Reabrir un SVG exportado (restaura la grilla y los ajustes)';
+    const svgInput = document.createElement('input');
+    svgInput.type = 'file';
+    svgInput.accept = '.svg,image/svg+xml';
+    svgInput.hidden = true;
+    svgInput.addEventListener('change', () => {
+      const f = svgInput.files?.[0];
+      if (f) {
+        const rdr = new FileReader();
+        rdr.onload = () => importSVG(String(rdr.result));
+        rdr.readAsText(f);
+      }
+      svgInput.value = '';
+    });
+    importLabel.appendChild(svgInput);
+    gImg.appendChild(importLabel);
 
     // --- Vista (zoom) ---
     const gView = group('Vista');
@@ -1034,10 +1104,55 @@ export function mountPixelArt(app: HTMLElement): () => void {
     return state.grid;
   }
 
+  function paletteLabel(): string {
+    if (state.paletteId === 'original') return 'Original (sin paleta)';
+    if (state.paletteId === 'cc') return 'Mi paleta del Conversor';
+    if (state.paletteId === 'custom') return 'Personalizada';
+    return PALETTES.find((p) => p.id === state.paletteId)?.name ?? state.paletteId;
+  }
+
+  // Líneas con la configuración usada, que van embebidas en el SVG.
+  function buildMeta(g: PixelGrid): string[] {
+    return [
+      'Generado con Design Toolbox — Generador de Pixel Art',
+      `Resolución: ${g.cols}×${g.rows} celdas`,
+      `Tamaño de celda: ${state.cellPx}px (salida ${g.cols * state.cellPx}×${g.rows * state.cellPx}px)`,
+      `Paleta: ${paletteLabel()}`,
+      `Escala de grises: ${state.grayscale ? 'sí' : 'no'}`,
+      `Recorte de transparencia: ${Math.round(state.alphaThreshold * 100)}%`,
+      `Quitar fondo: ${
+        state.removeBg
+          ? `sí (color ${state.bgColor}, tolerancia ${Math.round(state.bgTolerance * 100)}%)`
+          : 'no'
+      }`,
+    ];
+  }
+
+  // config legible por máquina, para poder reimportar y restaurar ajustes
+  function buildConfig(g: PixelGrid): Record<string, unknown> {
+    return {
+      tool: 'dt-pixelart',
+      v: 1,
+      cols: g.cols,
+      rows: g.rows,
+      cellPx: state.cellPx,
+      grayscale: state.grayscale,
+      alphaThreshold: state.alphaThreshold,
+      removeBg: state.removeBg,
+      bgColor: state.bgColor,
+      bgTolerance: state.bgTolerance,
+      paletteId: state.paletteId,
+      brush: state.brush,
+      brushSize: state.brushSize,
+      showGrid: state.showGrid,
+      customPalette: state.paletteId === 'custom' ? customPalette : undefined,
+    };
+  }
+
   app.querySelector<HTMLButtonElement>('#export-svg')!.addEventListener('click', () => {
     const g = guard();
     if (!g) return;
-    const svg = gridToSVG(g, state.cellPx);
+    const svg = gridToSVG(g, state.cellPx, buildMeta(g), buildConfig(g));
     download(new Blob([svg], { type: 'image/svg+xml' }), 'pixel-art.svg');
   });
 
