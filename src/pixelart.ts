@@ -116,7 +116,21 @@ interface State {
   grid: PixelGrid | null;
 }
 
-const MAX_HISTORY = 60;
+// Una entrada de historial: la grilla completa + los ajustes que la generan,
+// así deshacer/rehacer funciona también cuando cambia la resolución o la paleta.
+interface Snapshot {
+  grid: PixelGrid;
+  cols: number;
+  cellPx: number;
+  grayscale: boolean;
+  alphaThreshold: number;
+  removeBg: boolean;
+  bgColor: string;
+  bgTolerance: number;
+  paletteId: string;
+}
+
+const MAX_HISTORY = 50;
 
 export function mountPixelArt(app: HTMLElement): () => void {
   app.innerHTML = TEMPLATE;
@@ -151,44 +165,83 @@ export function mountPixelArt(app: HTMLElement): () => void {
   let customPalette: string[] = loadCustom();
 
   // ---- historial (deshacer / rehacer) ----
-  let undoStack: Cell[][] = [];
-  let redoStack: Cell[][] = [];
+  let undoStack: Snapshot[] = [];
+  let redoStack: Snapshot[] = [];
+  let liveSnapTaken = false; // evita una entrada por cada tick al arrastrar
   let renderHistory = (): void => {};
   let renderLayers = (): void => {};
   let renderZoom = (): void => {};
 
-  function resetHistory(): void {
-    undoStack = [];
-    redoStack = [];
+  function snap(): Snapshot {
+    const g = state.grid!;
+    return {
+      grid: { cols: g.cols, rows: g.rows, cells: g.cells.slice() },
+      cols: state.cols,
+      cellPx: state.cellPx,
+      grayscale: state.grayscale,
+      alphaThreshold: state.alphaThreshold,
+      removeBg: state.removeBg,
+      bgColor: state.bgColor,
+      bgTolerance: state.bgTolerance,
+      paletteId: state.paletteId,
+    };
+  }
+
+  function applySnap(s: Snapshot): void {
+    state.grid = { cols: s.grid.cols, rows: s.grid.rows, cells: s.grid.cells.slice() };
+    state.cols = s.cols;
+    state.cellPx = s.cellPx;
+    state.grayscale = s.grayscale;
+    state.alphaThreshold = s.alphaThreshold;
+    state.removeBg = s.removeBg;
+    state.bgColor = s.bgColor;
+    state.bgTolerance = s.bgTolerance;
+    state.paletteId = s.paletteId;
+    state.isolate = null;
+    buildControls(); // refleja los ajustes restaurados en el panel
+    paint();
+    fitCanvas();
+    updateInfo();
+    renderLayers();
     renderHistory();
   }
 
-  // Guarda el estado actual ANTES de una edición, para poder deshacerla.
-  function beginEdit(): void {
+  function resetHistory(): void {
+    undoStack = [];
+    redoStack = [];
+    liveSnapTaken = false;
+    renderHistory();
+  }
+
+  // Guarda el estado actual ANTES de un cambio, para poder deshacerlo.
+  function pushHistory(): void {
     if (!state.grid) return;
-    undoStack.push(state.grid.cells.slice());
+    undoStack.push(snap());
     if (undoStack.length > MAX_HISTORY) undoStack.shift();
     redoStack = [];
     renderHistory();
   }
+  const beginEdit = pushHistory;
+
+  // Una sola entrada por "gesto" continuo (arrastrar un slider / color picker).
+  function liveSnap(): void {
+    if (!liveSnapTaken && state.grid) {
+      pushHistory();
+      liveSnapTaken = true;
+    }
+  }
 
   function undo(): void {
     if (!state.grid || !undoStack.length) return;
-    redoStack.push(state.grid.cells.slice());
-    state.grid.cells = undoStack.pop()!;
-    paint();
-    renderLayers();
-    renderHistory();
+    redoStack.push(snap());
+    applySnap(undoStack.pop()!);
     scheduleSave();
   }
 
   function redo(): void {
     if (!state.grid || !redoStack.length) return;
-    undoStack.push(state.grid.cells.slice());
-    state.grid.cells = redoStack.pop()!;
-    paint();
-    renderLayers();
-    renderHistory();
+    undoStack.push(snap());
+    applySnap(redoStack.pop()!);
     scheduleSave();
   }
 
@@ -273,7 +326,6 @@ export function mountPixelArt(app: HTMLElement): () => void {
       bgTolerance: state.bgTolerance,
     });
     state.isolate = null; // la grilla cambió: no tiene sentido mantener la capa
-    resetHistory();
     paint();
     fitCanvas();
     updateInfo();
@@ -335,6 +387,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
         canvasWrap.hidden = false;
         buildControls(); // refresca etiqueta y el color de fondo prellenado
         regrid();
+        resetHistory(); // imagen nueva: historial limpio
       };
       img.src = reader.result as string;
     };
@@ -574,6 +627,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     const gPix = group('Pixelado');
     gPix.appendChild(
       rangeRow('Resolución (ancho)', state.cols, 8, 200, 1, (v) => {
+        liveSnap();
         state.cols = v;
         regrid();
       }),
@@ -587,6 +641,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     );
     gPix.appendChild(
       rangeRow('Recorte de transparencia %', Math.round(state.alphaThreshold * 100), 0, 100, 1, (v) => {
+        liveSnap();
         state.alphaThreshold = v / 100;
         regrid();
       }),
@@ -597,6 +652,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     gPix.appendChild(thHint);
     gPix.appendChild(
       toggleRow('Escala de grises', state.grayscale, (v) => {
+        pushHistory();
         state.grayscale = v;
         regrid();
       }),
@@ -608,11 +664,27 @@ export function mountPixelArt(app: HTMLElement): () => void {
         scheduleSave();
       }),
     );
+    const repixBtn = document.createElement('button');
+    repixBtn.type = 'button';
+    repixBtn.textContent = 'Re-pixelar desde la imagen';
+    repixBtn.title = 'Regenera la grilla desde la imagen con los ajustes actuales. Se puede deshacer (Ctrl+Z).';
+    repixBtn.disabled = !state.img;
+    repixBtn.addEventListener('click', () => {
+      if (!state.img) return;
+      pushHistory();
+      regrid();
+    });
+    gPix.appendChild(repixBtn);
+    const repixHint = document.createElement('p');
+    repixHint.className = 'pa-hint';
+    repixHint.textContent = 'Reaplica resolución, paleta, grises y fondo. Descarta los retoques a mano (deshacible).';
+    gPix.appendChild(repixHint);
 
     // --- Fondo ---
     const gBg = group('Fondo');
     gBg.appendChild(
       toggleRow('Quitar fondo (color sólido)', state.removeBg, (v) => {
+        pushHistory();
         state.removeBg = v;
         regrid();
       }),
@@ -629,8 +701,10 @@ export function mountPixelArt(app: HTMLElement): () => void {
       getAlpha: () => 1,
       hasAlpha: false,
       onChange: (hex) => {
+        if (state.removeBg) liveSnap();
         state.bgColor = hex.toUpperCase();
         if (state.removeBg) regrid();
+        else scheduleSave();
       },
     });
     pickers.push(bgPicker);
@@ -638,8 +712,10 @@ export function mountPixelArt(app: HTMLElement): () => void {
     gBg.appendChild(bgRow);
     gBg.appendChild(
       rangeRow('Tolerancia %', Math.round(state.bgTolerance * 100), 0, 100, 1, (v) => {
+        if (state.removeBg) liveSnap();
         state.bgTolerance = v / 100;
         if (state.removeBg) regrid();
+        else scheduleSave();
       }),
     );
     const cornerBtn = document.createElement('button');
@@ -647,6 +723,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     cornerBtn.textContent = 'Tomar color de la esquina';
     cornerBtn.addEventListener('click', () => {
       if (!state.img) return;
+      pushHistory();
       state.bgColor = cornerColor(state.img);
       state.removeBg = true;
       bgPicker.sync();
@@ -671,6 +748,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
     ];
     gPal.appendChild(
       selectRow('Paleta', state.paletteId, opts, (v) => {
+        pushHistory();
         state.paletteId = v;
         // al elegir una paleta, el pincel arranca en su primer color
         const pal = activePalette();
@@ -708,8 +786,8 @@ export function mountPixelArt(app: HTMLElement): () => void {
         if (!customPalette.includes(hex)) {
           customPalette.push(hex);
           saveCustom();
-          renderBrushes();
-          regrid();
+          renderBrushes(); // sólo suma el pincel; NO re-pixela (no pierde el trabajo)
+          scheduleSave();
         }
       });
       const clearBtn = document.createElement('button');
@@ -719,7 +797,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
         customPalette = [];
         saveCustom();
         renderBrushes();
-        regrid();
+        scheduleSave();
       });
       customControls.append(addPicker.swatch, addBtn, clearBtn);
       gPal.appendChild(customControls);
@@ -745,10 +823,9 @@ export function mountPixelArt(app: HTMLElement): () => void {
         customPalette = parsed;
         saveCustom();
         ta.value = '';
-        const pal = activePalette();
-        if (pal && pal.length) state.brush = pal[0];
+        state.brush = parsed[0];
         renderBrushes();
-        regrid();
+        scheduleSave();
       });
       const fromCCBtn = document.createElement('button');
       fromCCBtn.type = 'button';
@@ -759,7 +836,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
         for (const hex of cc) if (!customPalette.includes(hex)) customPalette.push(hex);
         saveCustom();
         renderBrushes();
-        regrid();
+        scheduleSave();
       });
       importRow.append(importBtn, fromCCBtn);
       importWrap.append(ta, importRow);
@@ -941,7 +1018,7 @@ export function mountPixelArt(app: HTMLElement): () => void {
             customPalette = customPalette.filter((c) => c !== hex);
             saveCustom();
             renderBrushes();
-            regrid();
+            scheduleSave();
           });
           sw.appendChild(del);
         }
@@ -1188,6 +1265,13 @@ export function mountPixelArt(app: HTMLElement): () => void {
   };
   stage.addEventListener('wheel', onWheel, { passive: false });
 
+  // fin de un gesto (soltar mouse / tecla): el próximo arrastre crea su entrada
+  const endGesture = () => {
+    liveSnapTaken = false;
+  };
+  window.addEventListener('pointerup', endGesture);
+  window.addEventListener('keyup', endGesture);
+
   const onKey = (e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -1209,6 +1293,8 @@ export function mountPixelArt(app: HTMLElement): () => void {
     mobileMq.removeEventListener('change', placeExportActions);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('keydown', onKey);
+    window.removeEventListener('pointerup', endGesture);
+    window.removeEventListener('keyup', endGesture);
     stage.removeEventListener('wheel', onWheel);
     pickers.forEach((p) => p.destroy());
   };
